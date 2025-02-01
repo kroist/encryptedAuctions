@@ -2,19 +2,22 @@
 
 pragma solidity ^0.8.24;
 
-contract PublicAuction {
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+contract PublicAuction {
     event AuctionCreated(
         uint256 indexed auctionId,
         address token,
         uint256 tokenAmount,
-        address indexed bidToken,
+        address bidToken,
         address indexed bidSequencer,
         uint256 floorPrice,
         uint256 startBlock,
-        uint256 endBlock
+        uint256 endBlock,
+        address indexed creator
     );
 
+    error AlreadyClaimed();
     error AuctionActive();
     error AuctionEnded();
     error AuctionNotStarted();
@@ -23,8 +26,9 @@ contract PublicAuction {
     error BidNotHighEnough();
     error BidNotEnoughFunds();
     error BidZeroAmount();
+    error UnauthorizedAccount();
     error WrongBidOrder();
-    
+
     struct AuctionData {
         address token;
         uint256 tokenAmount;
@@ -39,6 +43,7 @@ contract PublicAuction {
         uint256 lastProcessedBidId;
         uint256 lastProcessedBidPrice;
         uint256 finalPrice;
+        address creator;
     }
 
     struct Bid {
@@ -87,8 +92,12 @@ contract PublicAuction {
             slidingSum: 0,
             lastProcessedBidId: 0,
             lastProcessedBidPrice: 0,
-            finalPrice: 0
+            finalPrice: 0,
+            creator: msg.sender
         });
+
+        // Transfer the token to the auction contract
+        IERC20(_token).transferFrom(msg.sender, address(this), _tokenAmount);
 
         emit AuctionCreated(
             auctionIndex,
@@ -98,10 +107,29 @@ contract PublicAuction {
             _bidSequencer,
             _floorPrice,
             _startBlock,
-            _endBlock
+            _endBlock,
+            msg.sender
         );
 
         auctionIndex++;
+    }
+
+    function cancelAuction(uint256 _auctionId) public {
+        // Cancel an auction
+
+        AuctionData memory auction = auctions[_auctionId];
+
+        if (auction.creator != msg.sender) {
+            revert UnauthorizedAccount();
+        }
+
+        if (block.number >= auction.endBlock) {
+            revert AuctionEnded();
+        }
+
+        auction.processedBidIndex = auction.bidIndex;
+
+        auctions[_auctionId] = auction;
     }
 
     function placeBid(uint256 _auctionId, uint256 _price, uint256 _amount) public {
@@ -113,7 +141,7 @@ contract PublicAuction {
             revert AuctionNotStarted();
         }
 
-        if (block.number > auction.endBlock) {
+        if (block.number >= auction.endBlock) {
             revert AuctionEnded();
         }
 
@@ -129,28 +157,24 @@ contract PublicAuction {
             revert BidAlreadyPlaced();
         }
 
-
-        bids[_auctionId][auction.bidIndex] = Bid({
-            price: _price,
-            amount: _amount,
-            wonAmount: 0
-        });
+        bids[_auctionId][auction.bidIndex] = Bid({ price: _price, amount: _amount, wonAmount: 0 });
 
         bidId[_auctionId][msg.sender] = auctions[_auctionId].bidIndex;
+
+        IERC20(auction.bidToken).transferFrom(msg.sender, address(this), _price * _amount);
 
         auctions[_auctionId].bidIndex++;
     }
 
     function processNextBid(uint256 _auctionId, uint256 _bidId) public {
-        if (block.number < auctions[_auctionId].endBlock) {
+        AuctionData memory auction = auctions[_auctionId];
+        if (block.number < auction.endBlock) {
             revert AuctionActive();
         }
 
         if (processedBids[_auctionId][_bidId]) {
             revert BidAlreadyPlaced();
         }
-
-        AuctionData memory auction = auctions[_auctionId];
 
         Bid memory bid = bids[_auctionId][_bidId];
 
@@ -177,8 +201,7 @@ contract PublicAuction {
         if (auction.slidingSum <= auction.tokenAmount) {
             bids[_auctionId][_bidId].wonAmount = bid.amount;
             auction.finalPrice = bid.price;
-        }
-        else if (previousSlidingSum < auction.tokenAmount) {
+        } else if (previousSlidingSum < auction.tokenAmount) {
             bids[_auctionId][_bidId].wonAmount = auction.tokenAmount - previousSlidingSum;
             auction.finalPrice = bid.price;
         }
@@ -191,16 +214,57 @@ contract PublicAuction {
     function claim(uint256 _auctionId) public {
         // Claim the auction
 
-        // AuctionData memory auction = auctions[_auctionId];
+        AuctionData memory auction = auctions[_auctionId];
 
-        // if (auction.processedBidIndex < auction.bidIndex) {
-        //     revert AuctionNotProcessed();
-        // }
+        if (block.number < auction.endBlock) {
+            revert AuctionActive();
+        }
 
-        // Bid memory bid = bids[_auctionId][bidId[_auctionId][msg.sender]];
+        if (auction.processedBidIndex < auction.bidIndex) {
+            revert AuctionNotProcessed();
+        }
 
-        // uint256 amount = bid.wonAmount * auction.finalPrice;
+        if (claimed[_auctionId][msg.sender]) {
+            revert AlreadyClaimed();
+        }
+
+        Bid memory bid = bids[_auctionId][bidId[_auctionId][msg.sender]];
 
         claimed[_auctionId][msg.sender] = true;
+
+        IERC20(auction.token).transfer(msg.sender, bid.wonAmount);
+
+        // if won, finalPrice is always <= bid.price
+        uint256 refund = bid.price * bid.amount - bid.wonAmount * auction.finalPrice;
+
+        IERC20(auction.bidToken).transfer(msg.sender, refund);
+    }
+
+    function claimOwner(uint256 _auctionId) public {
+        // Claim the auction as the owner
+
+        AuctionData memory auction = auctions[_auctionId];
+
+        if (block.number < auction.endBlock) {
+            revert AuctionActive();
+        }
+
+        if (auction.processedBidIndex < auction.bidIndex) {
+            revert AuctionNotProcessed();
+        }
+
+        if (claimed[_auctionId][auction.creator]) {
+            revert AlreadyClaimed();
+        }
+
+        claimed[_auctionId][auction.creator] = true;
+
+        // if not all tokens were sold, return them to the owner
+        if (auction.slidingSum < auction.tokenAmount) {
+            IERC20(auction.token).transfer(auction.creator, auction.tokenAmount - auction.slidingSum);
+            IERC20(auction.bidToken).transfer(auction.creator, auction.slidingSum * auction.finalPrice);
+        } else {
+            IERC20(auction.bidToken).transfer(auction.creator, auction.tokenAmount * auction.finalPrice);
+        }
     }
 }
