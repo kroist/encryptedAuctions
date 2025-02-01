@@ -1,4 +1,4 @@
-import { mine, reset } from "@nomicfoundation/hardhat-network-helpers";
+import { reset, time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 
 import type { PublicAuction } from "../../types";
@@ -6,7 +6,57 @@ import { Signers, getSigners, initSigners } from "../signers";
 import { deployPublicAuctionFixture } from "./PublicAuction.fixture";
 import { PublicERC20Fixture, deployPublicERC20Fixture } from "./PublicERC20.fixture";
 
+// Test constants
+const INITIAL_TOKEN_AMOUNT = 100n;
+const FLOOR_PRICE = 50n;
+// One hour from now
+const START_TIME = BigInt(Math.floor(Date.now() / 1000) + 3600);
+// Two hours from now
+const END_TIME = BigInt(Math.floor(Date.now() / 1000) + 7200);
+// After end time
+const POST_END_TIME = END_TIME + 60n; // 1 minute after end
+const BID_AMOUNT = 10n;
+const BID_PRICE = 60n;
+const INITIAL_BID_TOKEN_BALANCE = 600n;
+
+// Bid processing constants
+const HIGH_PRICE = 100n;
+const MID_PRICE = 90n;
+const LOW_PRICE = 80n;
+const HIGH_AMOUNT = 40n;
+const MID_AMOUNT = 30n;
+const LOW_AMOUNT = 50n;
+
 describe("PublicAuction", function () {
+  // Helper function to setup tokens and approvals
+  async function setupTokensAndApprovals(
+    auctionableToken: PublicERC20Fixture,
+    bidToken: PublicERC20Fixture,
+    publicAuction: PublicAuction,
+    signers: Signers,
+  ) {
+    await auctionableToken.mintHelper(signers.alice.address, INITIAL_TOKEN_AMOUNT);
+    await auctionableToken.approveHelper(signers.alice, publicAuction.getAddress(), INITIAL_TOKEN_AMOUNT);
+  }
+
+  // Helper function to create auction
+  async function createTestAuction(
+    publicAuction: PublicAuction,
+    auctionableToken: PublicERC20Fixture,
+    bidToken: PublicERC20Fixture,
+    signers: Signers,
+  ) {
+    return publicAuction.createAuction(
+      auctionableToken.address,
+      INITIAL_TOKEN_AMOUNT,
+      bidToken.address,
+      signers.alice.address,
+      FLOOR_PRICE,
+      START_TIME,
+      END_TIME,
+    );
+  }
+
   let publicAuction: PublicAuction;
   let signers: Signers;
   let auctionableToken: PublicERC20Fixture;
@@ -18,503 +68,445 @@ describe("PublicAuction", function () {
   });
 
   beforeEach(async function () {
-    reset();
-    const contract = await deployPublicAuctionFixture();
+    await reset();
+    publicAuction = await deployPublicAuctionFixture();
     auctionableToken = await deployPublicERC20Fixture("AuctionableToken", "AT");
     bidToken = await deployPublicERC20Fixture("BidToken", "BT");
-    publicAuction = contract;
   });
 
   describe("Auction Creation", function () {
     beforeEach(async function () {
-      await auctionableToken.mintHelper(signers.alice.address, 100n);
-      await auctionableToken.approveHelper(signers.alice, publicAuction.getAddress(), 100n);
+      await setupTokensAndApprovals(auctionableToken, bidToken, publicAuction, signers);
     });
 
-    it("should create an auction with correct parameters", async function () {
-      const transaction = await publicAuction.createAuction(
-        auctionableToken.address,
-        100n,
-        bidToken.address,
-        signers.alice.address,
-        1n,
-        50n,
-        200n,
-      );
+    it("should initialize auction with correct parameters and emit event", async function () {
+      const tx = await createTestAuction(publicAuction, auctionableToken, bidToken, signers);
+      await tx.wait();
 
-      await transaction.wait();
-
+      // Verify event emission
       const auctionEvent = await publicAuction.queryFilter(publicAuction.filters.AuctionCreated());
       expect(auctionEvent.length).to.equal(1);
 
-      const auctionId = auctionEvent[0].args[0];
-
-      const auction = await publicAuction.auctions(auctionId);
-
-      expect(auction.token).to.equal(auctionableToken.address);
-      expect(auction.tokenAmount).to.equal(100n);
-      expect(auction.bidToken).to.equal(bidToken.address);
-      expect(auction.bidSequencer).to.equal(signers.alice.address);
-      expect(auction.floorPrice).to.equal(1n);
-      expect(auction.startBlock).to.equal(50n);
-      expect(auction.endBlock).to.equal(200n);
-      expect(auction.bidIndex).to.equal(1n);
-      expect(auction.processedBidIndex).to.equal(1n);
-      expect(auction.slidingSum).to.equal(0n);
-      expect(auction.lastProcessedBidId).to.equal(0n);
-      expect(auction.lastProcessedBidPrice).to.equal(0n);
-      expect(auction.finalPrice).to.equal(0n);
-    });
-
-    it("should increment auction index after creation", async function () {
-      const initialIndex = await publicAuction.auctionIndex();
-
-      const tx = await publicAuction.createAuction(
+      // Verify auction data
+      const auction = await publicAuction.auctionData();
+      expect(auction).to.deep.equal([
         auctionableToken.address,
-        100n,
+        INITIAL_TOKEN_AMOUNT,
         bidToken.address,
         signers.alice.address,
+        FLOOR_PRICE,
+        START_TIME,
+        END_TIME,
         1n,
-        50n,
-        200n,
-      );
-      await tx.wait();
-
-      const newIndex = await publicAuction.auctionIndex();
-      expect(newIndex).to.equal(initialIndex + 1n);
+        1n,
+        0n,
+        0n,
+        0n,
+        0n,
+        signers.alice.address,
+      ]);
     });
   });
 
   describe("Bid Placement", function () {
-    let auctionId: bigint;
+    async function setupBidder() {
+      await bidToken.mintHelper(signers.bob.address, INITIAL_BID_TOKEN_BALANCE);
+      await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), INITIAL_BID_TOKEN_BALANCE);
+    }
 
     beforeEach(async function () {
-      await auctionableToken.mintHelper(signers.alice.address, 100n);
-      await auctionableToken.approveHelper(signers.alice, publicAuction.getAddress(), 100n);
-      const tx = await publicAuction.createAuction(
-        auctionableToken.address,
-        100n,
-        bidToken.address,
-        signers.alice.address,
-        50n, // floor price
-        50n, // start block
-        200n, // end block
-      );
+      await setupTokensAndApprovals(auctionableToken, bidToken, publicAuction, signers);
+      const tx = await createTestAuction(publicAuction, auctionableToken, bidToken, signers);
       await tx.wait();
-      const event = await publicAuction.queryFilter(publicAuction.filters.AuctionCreated());
-      auctionId = event[0].args[0];
-
-      await bidToken.mintHelper(signers.bob.address, 600n);
-      await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), 600n);
+      await setupBidder();
     });
 
-    it("should allow valid bid placement", async function () {
-      await mine(50); // Move to start block
-      const tx = await publicAuction.connect(signers.bob).placeBid(auctionId, 60n, 10n);
+    it("should allow valid bid placement and update state correctly", async function () {
+      await time.increaseTo(START_TIME);
+      const tx = await publicAuction.connect(signers.bob).placeBid(BID_PRICE, BID_AMOUNT);
       await tx.wait();
 
-      const bidId = await publicAuction.bidId(auctionId, signers.bob.address);
+      const bidId = await publicAuction.bidId(signers.bob.address);
       expect(bidId).to.equal(1n);
 
-      const bid = await publicAuction.bids(auctionId, bidId);
-      expect(bid.price).to.equal(60n);
-      expect(bid.amount).to.equal(10n);
-      expect(bid.wonAmount).to.equal(0n);
+      const bid = await publicAuction.bids(bidId);
+      expect(bid).to.deep.equal([BID_PRICE, BID_AMOUNT, 0n]);
 
       const bobBidTokenBalance = await bidToken.contract.balanceOf(signers.bob.address);
-
       expect(bobBidTokenBalance).to.equal(0n);
     });
 
-    it("should revert if not enough bid token approved", async function () {
-      await mine(50); // Move to start block
-      await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), 599n);
-      await expect(publicAuction.connect(signers.bob).placeBid(auctionId, 60n, 10n)).to.be.revertedWithCustomError(
-        bidToken.contract,
-        "ERC20InsufficientAllowance",
-      );
-    });
+    describe("Bid Validation", function () {
+      it("should revert if not enough bid token approved", async function () {
+        await time.increaseTo(START_TIME);
+        await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), BID_PRICE * BID_AMOUNT - 1n);
+        await expect(publicAuction.connect(signers.bob).placeBid(BID_PRICE, BID_AMOUNT)).to.be.revertedWithCustomError(
+          bidToken.contract,
+          "ERC20InsufficientAllowance",
+        );
+      });
 
-    it("should revert if auction has not started", async function () {
-      await expect(publicAuction.connect(signers.bob).placeBid(auctionId, 60n, 10n)).to.be.revertedWithCustomError(
-        publicAuction,
-        "AuctionNotStarted",
-      );
-    });
+      it("should revert if auction has not started", async function () {
+        await expect(publicAuction.connect(signers.bob).placeBid(BID_PRICE, BID_AMOUNT)).to.be.revertedWithCustomError(
+          publicAuction,
+          "AuctionNotActive",
+        );
+      });
 
-    it("should revert if auction has ended", async function () {
-      await mine(201); // Move past end block
-      await expect(publicAuction.connect(signers.bob).placeBid(auctionId, 60n, 10n)).to.be.revertedWithCustomError(
-        publicAuction,
-        "AuctionEnded",
-      );
-    });
+      it("should revert if auction has ended", async function () {
+        await time.increaseTo(POST_END_TIME);
+        await expect(publicAuction.connect(signers.bob).placeBid(BID_PRICE, BID_AMOUNT)).to.be.revertedWithCustomError(
+          publicAuction,
+          "AuctionNotActive",
+        );
+      });
 
-    it("should revert if bid amount is zero", async function () {
-      await mine(50);
-      await expect(publicAuction.connect(signers.bob).placeBid(auctionId, 60n, 0n)).to.be.revertedWithCustomError(
-        publicAuction,
-        "BidZeroAmount",
-      );
-    });
+      it("should revert if bid amount is zero", async function () {
+        await time.increaseTo(START_TIME);
+        await expect(publicAuction.connect(signers.bob).placeBid(BID_PRICE, 0n)).to.be.revertedWithCustomError(
+          publicAuction,
+          "BidZeroAmount",
+        );
+      });
 
-    it("should revert if bid price is below floor price", async function () {
-      await mine(50);
-      await expect(publicAuction.connect(signers.bob).placeBid(auctionId, 40n, 10n)).to.be.revertedWithCustomError(
-        publicAuction,
-        "BidNotHighEnough",
-      );
-    });
+      it("should revert if bid price is below floor price", async function () {
+        await time.increaseTo(START_TIME);
+        await expect(
+          publicAuction.connect(signers.bob).placeBid(FLOOR_PRICE - 10n, BID_AMOUNT),
+        ).to.be.revertedWithCustomError(publicAuction, "BidNotHighEnough");
+      });
 
-    it("should revert if bidder has already placed a bid", async function () {
-      await mine(50);
-      const tx = await publicAuction.connect(signers.bob).placeBid(auctionId, 60n, 10n);
-      await tx.wait();
-      await expect(publicAuction.connect(signers.bob).placeBid(auctionId, 70n, 10n)).to.be.revertedWithCustomError(
-        publicAuction,
-        "BidAlreadyPlaced",
-      );
+      it("should revert if bidder has already placed a bid", async function () {
+        await time.increaseTo(START_TIME);
+        const tx = await publicAuction.connect(signers.bob).placeBid(BID_PRICE, BID_AMOUNT);
+        await tx.wait();
+        await expect(
+          publicAuction.connect(signers.bob).placeBid(BID_PRICE + 10n, BID_AMOUNT),
+        ).to.be.revertedWithCustomError(publicAuction, "BidAlreadyPlaced");
+      });
     });
   });
 
+  // Helper function to setup a bidder with tokens and approvals
+  async function setupBidder(signer: Signers[keyof Signers], price: bigint, amount: bigint) {
+    await bidToken.mintHelper(signer.address, price * amount);
+    await bidToken.approveHelper(signer, publicAuction.getAddress(), price * amount);
+    const bid = await publicAuction.connect(signer).placeBid(price, amount);
+    await bid.wait();
+  }
+
+  // Helper function to setup auction with multiple bids
+  async function setupAuctionWithBids() {
+    await setupTokensAndApprovals(auctionableToken, bidToken, publicAuction, signers);
+    const tx = await createTestAuction(publicAuction, auctionableToken, bidToken, signers);
+    await tx.wait();
+    await time.increaseTo(START_TIME);
+
+    // Place multiple bids in descending price order
+    await setupBidder(signers.bob, HIGH_PRICE, HIGH_AMOUNT);
+    await setupBidder(signers.carol, MID_PRICE, MID_AMOUNT);
+    await setupBidder(signers.dave, LOW_PRICE, LOW_AMOUNT);
+  }
+
   describe("Bid Processing", function () {
-    let auctionId: bigint;
-
     beforeEach(async function () {
-      await auctionableToken.mintHelper(signers.alice.address, 100n);
-      await auctionableToken.approveHelper(signers.alice, publicAuction.getAddress(), 100n);
-
-      const tx = await publicAuction.createAuction(
-        auctionableToken.address,
-        100n,
-        bidToken.address,
-        signers.alice.address,
-        50n,
-        50n,
-        200n,
-      );
-      await tx.wait();
-      const event = await publicAuction.queryFilter(publicAuction.filters.AuctionCreated());
-      auctionId = event[0].args[0];
-
-      await mine(50);
-
-      // Place multiple bids
-      await bidToken.mintHelper(signers.bob.address, 100n * 40n);
-      await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), 100n * 40n);
-      const bid1 = await publicAuction.connect(signers.bob).placeBid(auctionId, 100n, 40n);
-      await bid1.wait();
-
-      await bidToken.mintHelper(signers.carol.address, 90n * 30n);
-      await bidToken.approveHelper(signers.carol, publicAuction.getAddress(), 90n * 30n);
-      const bid2 = await publicAuction.connect(signers.carol).placeBid(auctionId, 90n, 30n);
-      await bid2.wait();
-
-      await bidToken.mintHelper(signers.dave.address, 80n * 50n);
-      await bidToken.approveHelper(signers.dave, publicAuction.getAddress(), 80n * 50n);
-      const bid3 = await publicAuction.connect(signers.dave).placeBid(auctionId, 80n, 50n);
-      await bid3.wait();
+      await setupAuctionWithBids();
     });
 
-    it("should process bids in correct order", async function () {
-      await mine(201); // Move past end block
+    it("should process bids in descending price order and update state", async function () {
+      await time.increaseTo(POST_END_TIME);
 
-      const bobBidId = await publicAuction.bidId(auctionId, signers.bob.address);
-      const carolBidId = await publicAuction.bidId(auctionId, signers.carol.address);
-      const daveBidId = await publicAuction.bidId(auctionId, signers.dave.address);
+      const bidIds = {
+        bob: await publicAuction.bidId(signers.bob.address),
+        carol: await publicAuction.bidId(signers.carol.address),
+        dave: await publicAuction.bidId(signers.dave.address),
+      };
 
-      // Process highest bid first
-      const tx1 = await publicAuction.processNextBid(auctionId, bobBidId);
-      await tx1.wait();
-      let auction = await publicAuction.auctions(auctionId);
-      expect(auction.slidingSum).to.equal(40n);
-      expect(auction.lastProcessedBidPrice).to.equal(100n);
+      // Process highest bid
+      await (await publicAuction.processNextBid(bidIds.bob)).wait();
+      let auction = await publicAuction.auctionData();
+      expect(auction.slidingSum).to.equal(HIGH_AMOUNT);
+      expect(auction.lastProcessedBidPrice).to.equal(HIGH_PRICE);
 
-      // Process second highest bid
-      const tx2 = await publicAuction.processNextBid(auctionId, carolBidId);
-      await tx2.wait();
-      auction = await publicAuction.auctions(auctionId);
-      expect(auction.slidingSum).to.equal(70n);
-      expect(auction.lastProcessedBidPrice).to.equal(90n);
+      // Process medium bid
+      await (await publicAuction.processNextBid(bidIds.carol)).wait();
+      auction = await publicAuction.auctionData();
+      expect(auction.slidingSum).to.equal(HIGH_AMOUNT + MID_AMOUNT);
+      expect(auction.lastProcessedBidPrice).to.equal(MID_PRICE);
 
       // Process lowest bid
-      const tx3 = await publicAuction.processNextBid(auctionId, daveBidId);
-      await tx3.wait();
-      auction = await publicAuction.auctions(auctionId);
-      expect(auction.slidingSum).to.equal(120n);
-      expect(auction.lastProcessedBidPrice).to.equal(80n);
+      await (await publicAuction.processNextBid(bidIds.dave)).wait();
+      auction = await publicAuction.auctionData();
+      expect(auction.slidingSum).to.equal(HIGH_AMOUNT + MID_AMOUNT + LOW_AMOUNT);
+      expect(auction.lastProcessedBidPrice).to.equal(LOW_PRICE);
     });
 
-    it("should revert if processing bid in wrong order", async function () {
-      await mine(201); // Move past end block
+    describe("Processing Validation", function () {
+      it("should revert if processing bid in wrong order", async function () {
+        await time.increaseTo(POST_END_TIME);
 
-      const daveBidId = await publicAuction.bidId(auctionId, signers.dave.address);
+        const bidIds = {
+          dave: await publicAuction.bidId(signers.dave.address),
+          carol: await publicAuction.bidId(signers.carol.address),
+        };
 
-      const carolBidId = await publicAuction.bidId(auctionId, signers.carol.address);
+        await (await publicAuction.processNextBid(bidIds.dave)).wait();
 
-      // Process lowest bid
-      const tx1 = await publicAuction.processNextBid(auctionId, daveBidId);
-      await tx1.wait();
+        await expect(publicAuction.processNextBid(bidIds.carol)).to.be.revertedWithCustomError(
+          publicAuction,
+          "WrongBidOrder",
+        );
+      });
 
-      // Process second highest bid
-      await expect(publicAuction.processNextBid(auctionId, carolBidId)).to.be.revertedWithCustomError(
-        publicAuction,
-        "WrongBidOrder",
-      );
-    });
+      it("should revert if auction is still active", async function () {
+        const bobBidId = await publicAuction.bidId(signers.bob.address);
+        await expect(publicAuction.processNextBid(bobBidId)).to.be.revertedWithCustomError(
+          publicAuction,
+          "AuctionNotEnded",
+        );
+      });
 
-    it("should revert if auction is still active", async function () {
-      const bobBidId = await publicAuction.bidId(auctionId, signers.bob.address);
-      await expect(publicAuction.processNextBid(auctionId, bobBidId)).to.be.revertedWithCustomError(
-        publicAuction,
-        "AuctionActive",
-      );
-    });
+      it("should revert if bid is already processed", async function () {
+        await time.increaseTo(POST_END_TIME);
+        const bobBidId = await publicAuction.bidId(signers.bob.address);
 
-    it("should revert if bid is already processed", async function () {
-      await mine(201); // Move past end block
+        await (await publicAuction.processNextBid(bobBidId)).wait();
 
-      const bobBidId = await publicAuction.bidId(auctionId, signers.bob.address);
-      const tx = await publicAuction.processNextBid(auctionId, bobBidId);
-      await tx.wait();
-
-      await expect(publicAuction.processNextBid(auctionId, bobBidId)).to.be.revertedWithCustomError(
-        publicAuction,
-        "BidAlreadyPlaced",
-      );
+        await expect(publicAuction.processNextBid(bobBidId)).to.be.revertedWithCustomError(
+          publicAuction,
+          "BidAlreadyPlaced",
+        );
+      });
     });
   });
 
   describe("Bid Processing: Sliding Sum", function () {
-    let auctionId: bigint;
+    async function setupAndProcessBids() {
+      await setupAuctionWithBids();
+      await time.increaseTo(POST_END_TIME);
 
-    beforeEach(async function () {
-      await auctionableToken.mintHelper(signers.alice.address, 100n);
-      await auctionableToken.approveHelper(signers.alice, publicAuction.getAddress(), 100n);
-      const tx = await publicAuction.createAuction(
-        auctionableToken.address,
-        100n,
-        bidToken.address,
-        signers.alice.address,
-        50n,
-        50n,
-        200n,
-      );
-      await tx.wait();
-      const event = await publicAuction.queryFilter(publicAuction.filters.AuctionCreated());
-      auctionId = event[0].args[0];
+      const bidIds = {
+        bob: await publicAuction.bidId(signers.bob.address),
+        carol: await publicAuction.bidId(signers.carol.address),
+        dave: await publicAuction.bidId(signers.dave.address),
+      };
 
-      await mine(50);
-    });
+      // Process all bids
+      await (await publicAuction.processNextBid(bidIds.bob)).wait();
+      await (await publicAuction.processNextBid(bidIds.carol)).wait();
+      await (await publicAuction.processNextBid(bidIds.dave)).wait();
 
-    it("should correctly set exact won amount when crossing token amount threshold", async function () {
-      // Place multiple bids
-      await bidToken.mintHelper(signers.bob.address, 100n * 40n);
-      await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), 100n * 40n);
-      const bid1 = await publicAuction.connect(signers.bob).placeBid(auctionId, 100n, 40n);
-      await bid1.wait();
+      return bidIds;
+    }
 
-      await bidToken.mintHelper(signers.carol.address, 90n * 60n);
-      await bidToken.approveHelper(signers.carol, publicAuction.getAddress(), 90n * 60n);
-      const bid2 = await publicAuction.connect(signers.carol).placeBid(auctionId, 90n, 60n);
-      await bid2.wait();
+    async function verifyBidResults(bidIds: { bob: bigint; carol: bigint; dave: bigint }) {
+      const [bobBid, carolBid, daveBid] = await Promise.all([
+        publicAuction.bids(bidIds.bob),
+        publicAuction.bids(bidIds.carol),
+        publicAuction.bids(bidIds.dave),
+      ]);
 
-      await bidToken.mintHelper(signers.dave.address, 80n * 50n);
-      await bidToken.approveHelper(signers.dave, publicAuction.getAddress(), 80n * 50n);
-      const bid3 = await publicAuction.connect(signers.dave).placeBid(auctionId, 80n, 50n);
-      await bid3.wait();
+      expect(bobBid.wonAmount).to.equal(HIGH_AMOUNT);
+      expect(carolBid.wonAmount).to.equal(MID_AMOUNT);
+      expect(daveBid.wonAmount).to.equal(INITIAL_TOKEN_AMOUNT - HIGH_AMOUNT - MID_AMOUNT);
 
-      await mine(201); // Move past end block
+      const auction = await publicAuction.auctionData();
+      expect(auction.finalPrice).to.equal(LOW_PRICE);
+    }
 
-      const bobBidId = await publicAuction.bidId(auctionId, signers.bob.address);
-      const carolBidId = await publicAuction.bidId(auctionId, signers.carol.address);
-      const daveBidId = await publicAuction.bidId(auctionId, signers.dave.address);
-
-      const tx1 = await publicAuction.processNextBid(auctionId, bobBidId);
-      await tx1.wait();
-      const tx2 = await publicAuction.processNextBid(auctionId, carolBidId);
-      await tx2.wait();
-      const tx3 = await publicAuction.processNextBid(auctionId, daveBidId);
-      await tx3.wait();
-
-      const bobBid = await publicAuction.bids(auctionId, bobBidId);
-      const carolBid = await publicAuction.bids(auctionId, carolBidId);
-      const daveBid = await publicAuction.bids(auctionId, daveBidId);
-
-      expect(bobBid.wonAmount).to.equal(40n);
-      expect(carolBid.wonAmount).to.equal(60n);
-      expect(daveBid.wonAmount).to.equal(0n);
-
-      const auction = await publicAuction.auctions(auctionId);
-      expect(auction.finalPrice).to.equal(90n);
-    });
-
-    it("should correctly set partial won amount when crossing token amount threshold", async function () {
-      // Place multiple bids
-      await bidToken.mintHelper(signers.bob.address, 100n * 40n);
-      await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), 100n * 40n);
-      const bid1 = await publicAuction.connect(signers.bob).placeBid(auctionId, 100n, 40n);
-      await bid1.wait();
-
-      await bidToken.mintHelper(signers.carol.address, 90n * 70n);
-      await bidToken.approveHelper(signers.carol, publicAuction.getAddress(), 90n * 70n);
-      const bid2 = await publicAuction.connect(signers.carol).placeBid(auctionId, 90n, 70n);
-      await bid2.wait();
-
-      await bidToken.mintHelper(signers.dave.address, 80n * 50n);
-      await bidToken.approveHelper(signers.dave, publicAuction.getAddress(), 80n * 50n);
-      const bid3 = await publicAuction.connect(signers.dave).placeBid(auctionId, 80n, 50n);
-      await bid3.wait();
-
-      await mine(201); // Move past end block
-
-      const bobBidId = await publicAuction.bidId(auctionId, signers.bob.address);
-      const carolBidId = await publicAuction.bidId(auctionId, signers.carol.address);
-      const daveBidId = await publicAuction.bidId(auctionId, signers.dave.address);
-
-      const tx1 = await publicAuction.processNextBid(auctionId, bobBidId);
-      await tx1.wait();
-      const tx2 = await publicAuction.processNextBid(auctionId, carolBidId);
-      await tx2.wait();
-      const tx3 = await publicAuction.processNextBid(auctionId, daveBidId);
-      await tx3.wait();
-
-      const bobBid = await publicAuction.bids(auctionId, bobBidId);
-      const carolBid = await publicAuction.bids(auctionId, carolBidId);
-      const daveBid = await publicAuction.bids(auctionId, daveBidId);
-
-      expect(bobBid.wonAmount).to.equal(40n);
-      expect(carolBid.wonAmount).to.equal(60n);
-      expect(daveBid.wonAmount).to.equal(0n);
-
-      const auction = await publicAuction.auctions(auctionId);
-      expect(auction.finalPrice).to.equal(90n);
+    it("should correctly set won amounts and final price", async function () {
+      const bidIds = await setupAndProcessBids();
+      await verifyBidResults(bidIds);
     });
   });
 
   describe("Claiming", function () {
-    let auctionId: bigint;
+    const CAROL_BID_AMOUNT = 70n;
+    const FINAL_PRICE = 80n;
+
+    async function setupClaimingTest(finalPrice: bigint, carolAmount: bigint) {
+      await setupTokensAndApprovals(auctionableToken, bidToken, publicAuction, signers);
+      const tx = await createTestAuction(publicAuction, auctionableToken, bidToken, signers);
+      await tx.wait();
+      await time.increaseTo(START_TIME);
+
+      // Setup bidders
+      await setupBidder(signers.bob, HIGH_PRICE, HIGH_AMOUNT);
+      await setupBidder(signers.carol, finalPrice, carolAmount);
+    }
+
+    async function processBids() {
+      const bidIds = {
+        bob: await publicAuction.bidId(signers.bob.address),
+        carol: await publicAuction.bidId(signers.carol.address),
+      };
+
+      await (await publicAuction.processNextBid(bidIds.bob)).wait();
+      await (await publicAuction.processNextBid(bidIds.carol)).wait();
+
+      return bidIds;
+    }
+
+    async function verifyClaimResult(
+      signer: Signers[keyof Signers],
+      wonAmount: bigint,
+      originalPrice: bigint,
+      originalAmount: bigint,
+    ) {
+      const tx = await publicAuction.connect(signer).claim();
+      await tx.wait();
+
+      const isClaimed = await publicAuction.claimed(signer.address);
+      expect(isClaimed).to.equal(true);
+
+      const auctionableTokenBalance = await auctionableToken.contract.balanceOf(signer.address);
+      expect(auctionableTokenBalance).to.equal(wonAmount);
+
+      const bidTokenBalance = await bidToken.contract.balanceOf(signer.address);
+      expect(bidTokenBalance).to.equal(originalPrice * originalAmount - FINAL_PRICE * wonAmount);
+    }
 
     beforeEach(async function () {
-      await auctionableToken.mintHelper(signers.alice.address, 100n);
-      await auctionableToken.approveHelper(signers.alice, publicAuction.getAddress(), 100n);
-      const tx = await publicAuction.createAuction(
-        auctionableToken.address,
-        100n,
-        bidToken.address,
-        signers.alice.address,
-        50n,
-        50n,
-        200n,
-      );
-      await tx.wait();
-      const event = await publicAuction.queryFilter(publicAuction.filters.AuctionCreated());
-      auctionId = event[0].args[0];
-      await mine(50);
+      await setupClaimingTest(FINAL_PRICE, CAROL_BID_AMOUNT);
     });
 
     it("should claim bid and refund the bid token excess", async function () {
-      {
-        await bidToken.mintHelper(signers.bob.address, 100n * 40n);
-        await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), 100n * 40n);
-        const bid = await publicAuction.connect(signers.bob).placeBid(auctionId, 100n, 40n);
-        await bid.wait();
-      }
+      await time.increaseTo(POST_END_TIME);
+      await processBids();
 
-      {
-        await bidToken.mintHelper(signers.carol.address, 80n * 70n);
-        await bidToken.approveHelper(signers.carol, publicAuction.getAddress(), 80n * 70n);
-        const bid = await publicAuction.connect(signers.carol).placeBid(auctionId, 80n, 70n);
-        await bid.wait();
-      }
-
-      await mine(201);
-
-      {
-        const bobBidId = await publicAuction.bidId(auctionId, signers.bob.address);
-        const tx = await publicAuction.processNextBid(auctionId, bobBidId);
-        await tx.wait();
-      }
-
-      {
-        const carolBidId = await publicAuction.bidId(auctionId, signers.carol.address);
-        const tx = await publicAuction.processNextBid(auctionId, carolBidId);
-        await tx.wait();
-      }
-
-      {
-        const tx = await publicAuction.connect(signers.bob).claim(auctionId);
-        await tx.wait();
-
-        const isClaimed = await publicAuction.claimed(auctionId, signers.bob.address);
-        expect(isClaimed).to.equal(true);
-
-        const bobAuctionableTokenBalance = await auctionableToken.contract.balanceOf(signers.bob.address);
-        expect(bobAuctionableTokenBalance).to.equal(40n);
-
-        const bobBidTokenBalance = await bidToken.contract.balanceOf(signers.bob.address);
-        expect(bobBidTokenBalance).to.equal(100n * 40n - 80n * 40n);
-      }
-
-      {
-        const tx = await publicAuction.connect(signers.carol).claim(auctionId);
-        await tx.wait();
-
-        const isClaimed = await publicAuction.claimed(auctionId, signers.carol.address);
-        expect(isClaimed).to.equal(true);
-
-        const carolAuctionableTokenBalance = await auctionableToken.contract.balanceOf(signers.carol.address);
-        expect(carolAuctionableTokenBalance).to.equal(60n);
-
-        const carolBidTokenBalance = await bidToken.contract.balanceOf(signers.carol.address);
-        expect(carolBidTokenBalance).to.equal(80n * 70n - 80n * 60n);
-      }
+      await verifyClaimResult(signers.bob, HIGH_AMOUNT, HIGH_PRICE, HIGH_AMOUNT);
+      await verifyClaimResult(signers.carol, INITIAL_TOKEN_AMOUNT - HIGH_AMOUNT, FINAL_PRICE, CAROL_BID_AMOUNT);
     });
 
-    it("should not claim if all bids are not processed", async function () {
-      {
-        await bidToken.mintHelper(signers.bob.address, 100n * 40n);
-        await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), 100n * 40n);
-        const bid = await publicAuction.connect(signers.bob).placeBid(auctionId, 100n, 40n);
-        await bid.wait();
-      }
+    describe("Claim Validation", function () {
+      it("should not claim if all bids are not processed", async function () {
+        await time.increaseTo(POST_END_TIME);
+        const bobBidId = await publicAuction.bidId(signers.bob.address);
+        await (await publicAuction.processNextBid(bobBidId)).wait();
 
-      {
-        await bidToken.mintHelper(signers.carol.address, 80n * 70n);
-        await bidToken.approveHelper(signers.carol, publicAuction.getAddress(), 80n * 70n);
-        const bid = await publicAuction.connect(signers.carol).placeBid(auctionId, 80n, 70n);
-        await bid.wait();
-      }
-      await mine(201);
+        await expect(publicAuction.connect(signers.bob).claim()).to.be.revertedWithCustomError(
+          publicAuction,
+          "AuctionNotProcessed",
+        );
+      });
 
-      const bobBidId = await publicAuction.bidId(auctionId, signers.bob.address);
-      await publicAuction.processNextBid(auctionId, bobBidId);
+      it("should not claim if already claimed", async function () {
+        await time.increaseTo(POST_END_TIME);
+        await processBids();
 
-      await expect(publicAuction.connect(signers.bob).claim(auctionId)).to.be.revertedWithCustomError(
-        publicAuction,
-        "AuctionNotProcessed",
-      );
+        await (await publicAuction.connect(signers.bob).claim()).wait();
+
+        await expect(publicAuction.connect(signers.bob).claim()).to.be.revertedWithCustomError(
+          publicAuction,
+          "AlreadyClaimed",
+        );
+      });
     });
+  });
 
-    it("should not claim if already claimed", async function () {
-      {
-        await bidToken.mintHelper(signers.bob.address, 100n * 40n);
-        await bidToken.approveHelper(signers.bob, publicAuction.getAddress(), 100n * 40n);
-        const bid = await publicAuction.connect(signers.bob).placeBid(auctionId, 100n, 40n);
-        await bid.wait();
-      }
-      await mine(201);
+  describe("Owner Claiming", function () {
+    const CAROL_BID_AMOUNT = 70n;
+    const FINAL_PRICE = 80n;
 
-      const bobBidId = await publicAuction.bidId(auctionId, signers.bob.address);
-      await publicAuction.processNextBid(auctionId, bobBidId);
+    async function setupOwnerClaimingTest(finalPrice: bigint, carolAmount: bigint) {
+      await setupTokensAndApprovals(auctionableToken, bidToken, publicAuction, signers);
+      const tx = await createTestAuction(publicAuction, auctionableToken, bidToken, signers);
+      await tx.wait();
+      await time.increaseTo(START_TIME);
 
-      const tx = await publicAuction.connect(signers.bob).claim(auctionId);
+      // Setup bidders
+      await setupBidder(signers.bob, HIGH_PRICE, HIGH_AMOUNT);
+      await setupBidder(signers.carol, finalPrice, carolAmount);
+    }
+
+    async function processBids() {
+      const bidIds = {
+        bob: await publicAuction.bidId(signers.bob.address),
+        carol: await publicAuction.bidId(signers.carol.address),
+      };
+
+      await (await publicAuction.processNextBid(bidIds.bob)).wait();
+      await (await publicAuction.processNextBid(bidIds.carol)).wait();
+
+      return bidIds;
+    }
+
+    it("should allow owner to claim bid tokens when all tokens are sold", async function () {
+      await setupOwnerClaimingTest(FINAL_PRICE, CAROL_BID_AMOUNT);
+      await time.increaseTo(POST_END_TIME);
+      await processBids();
+
+      const tx = await publicAuction.connect(signers.alice).claimOwner();
       await tx.wait();
 
-      await expect(publicAuction.connect(signers.bob).claim(auctionId)).to.be.revertedWithCustomError(
-        publicAuction,
-        "AlreadyClaimed",
-      );
+      const isClaimed = await publicAuction.claimed(signers.alice.address);
+      expect(isClaimed).to.equal(true);
+
+      // Owner should receive bid tokens for all sold tokens
+      const ownerBidTokenBalance = await bidToken.contract.balanceOf(signers.alice.address);
+      expect(ownerBidTokenBalance).to.equal(INITIAL_TOKEN_AMOUNT * FINAL_PRICE);
+
+      // Owner should not receive any auctionable tokens back since all were sold
+      const ownerAuctionableTokenBalance = await auctionableToken.contract.balanceOf(signers.alice.address);
+      expect(ownerAuctionableTokenBalance).to.equal(0n);
+    });
+
+    it("should allow owner to claim remaining tokens and bid tokens when not all tokens are sold", async function () {
+      // Setup auction with bids that don't cover all tokens
+      const PARTIAL_AMOUNT = INITIAL_TOKEN_AMOUNT / 2n;
+      await setupOwnerClaimingTest(FINAL_PRICE, PARTIAL_AMOUNT - HIGH_AMOUNT);
+
+      await time.increaseTo(POST_END_TIME);
+      await processBids();
+
+      const tx = await publicAuction.connect(signers.alice).claimOwner();
+      await tx.wait();
+
+      const isClaimed = await publicAuction.claimed(signers.alice.address);
+      expect(isClaimed).to.equal(true);
+
+      // Owner should receive bid tokens for sold tokens
+      const ownerBidTokenBalance = await bidToken.contract.balanceOf(signers.alice.address);
+      expect(ownerBidTokenBalance).to.equal(PARTIAL_AMOUNT * FINAL_PRICE);
+
+      // Owner should receive unsold tokens back
+      const ownerAuctionableTokenBalance = await auctionableToken.contract.balanceOf(signers.alice.address);
+      expect(ownerAuctionableTokenBalance).to.equal(INITIAL_TOKEN_AMOUNT - PARTIAL_AMOUNT);
+    });
+
+    describe("Owner Claim Validation", function () {
+      this.beforeEach(async function () {
+        await setupOwnerClaimingTest(FINAL_PRICE, CAROL_BID_AMOUNT);
+      });
+      it("should not claim if auction is not processed", async function () {
+        await time.increaseTo(POST_END_TIME);
+        const bobBidId = await publicAuction.bidId(signers.bob.address);
+        await (await publicAuction.processNextBid(bobBidId)).wait();
+
+        await expect(publicAuction.connect(signers.alice).claimOwner()).to.be.revertedWithCustomError(
+          publicAuction,
+          "AuctionNotProcessed",
+        );
+      });
+
+      it("should not claim if auction has not ended", async function () {
+        await expect(publicAuction.connect(signers.alice).claimOwner()).to.be.revertedWithCustomError(
+          publicAuction,
+          "AuctionNotEnded",
+        );
+      });
+
+      it("should not claim if already claimed", async function () {
+        await time.increaseTo(POST_END_TIME);
+        await processBids();
+
+        await (await publicAuction.connect(signers.alice).claimOwner()).wait();
+
+        await expect(publicAuction.connect(signers.alice).claimOwner()).to.be.revertedWithCustomError(
+          publicAuction,
+          "AlreadyClaimed",
+        );
+      });
     });
   });
 });
