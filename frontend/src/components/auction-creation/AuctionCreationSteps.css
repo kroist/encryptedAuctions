@@ -1,0 +1,43 @@
+.step-content {
+  padding: 2rem;
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1rem;
+}
+
+.step-summary {
+  padding: 1rem;
+  background-color: #242424;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  cursor: default;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.step-summary h3 {
+  margin: 0 0 0.5rem 0;
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.step-status {
+  font-size: 0.9rem;
+  color: #ccc;
+}
+
+.step-status.success {
+  color: #90ee90;
+}
+
+.token-info {
+  background-color: #333;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+  color: #fff;
+  font-size: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Form styles moved to /src/styles/forms.css */

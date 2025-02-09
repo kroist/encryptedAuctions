@@ -62,7 +62,7 @@ export const initGateway = async (): Promise<void> => {
   });
 };
 
-export const awaitAllDecryptionResults = async (): Promise<void> => {
+export const awaitAllDecryptionResults = async (): Promise<string[]> => {
   gateway = await ethers.getContractAt(gatewayArtifact.abi, GATEWAYCONTRACT_ADDRESS);
   const provider = ethers.provider;
   if (networkName === "hardhat" && hre.__SOLIDITY_COVERAGE_RUNNING !== true) {
@@ -72,12 +72,13 @@ export const awaitAllDecryptionResults = async (): Promise<void> => {
       firstBlockListening = lastBlockSnapshotForDecrypt + 1;
     }
   }
-  await fulfillAllPastRequestsIds(networkName === "hardhat");
+  const txHashes = await fulfillAllPastRequestsIds(networkName === "hardhat");
   firstBlockListening = (await ethers.provider.getBlockNumber()) + 1;
   if (networkName === "hardhat" && hre.__SOLIDITY_COVERAGE_RUNNING !== true) {
     // evm_snapshot is not supported in coverage mode
     await provider.send("set_lastBlockSnapshotForDecrypt", [firstBlockListening]);
   }
+  return txHashes;
 };
 
 const getAlreadyFulfilledDecryptions = async (): Promise<[bigint]> => {
@@ -106,6 +107,7 @@ const fulfillAllPastRequestsIds = async (mocked: boolean) => {
     topics: eventDecryption,
   };
   const pastRequests = await ethers.provider.getLogs(filterDecryption);
+  let txHashes = [];
   for (const request of pastRequests) {
     const event = ifaceEventDecryption.parseLog(request);
     const requestID = event.args[0];
@@ -151,9 +153,10 @@ const fulfillAllPastRequestsIds = async (mocked: boolean) => {
         const numSigners = 1; // for the moment mocked mode only uses 1 signer
         const decryptResultsEIP712signatures = await computeDecryptSignatures(handles, calldata, numSigners);
         const relayer = await impersonateAddress(hre, ZeroAddress, ethers.parseEther("100"));
-        await gateway
+        const tx = await gateway
           .connect(relayer)
           .fulfillRequest(requestID, calldata, decryptResultsEIP712signatures, { value: msgValue });
+        txHashes.push(tx.hash);
       } else {
         // in non-mocked mode we must wait until the gateway service relayer submits the decryption fulfillment tx
         await waitNBlocks(1);
@@ -161,6 +164,7 @@ const fulfillAllPastRequestsIds = async (mocked: boolean) => {
       }
     }
   }
+  return txHashes;
 };
 
 async function computeDecryptSignatures(

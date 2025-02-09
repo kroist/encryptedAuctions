@@ -1,0 +1,168 @@
+.item-list {
+  max-width: 1200px;
+  margin: 2rem auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 0 1rem;
+}
+
+.item-card {
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1.5rem;
+  color: white;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  position: relative;
+}
+
+.item-card:hover {
+  transform: translateY(-4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-color: white;
+}
+
+.item-title {
+  margin: 0;
+  font-size: 1.25rem;
+  color: #fff;
+  margin-bottom: 1rem;
+}
+
+.item-content {
+  position: relative;
+  background-color: #242424;
+  padding: 1rem;
+  border-radius: 4px;
+}
+
+.status-badge {
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+.item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.token-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #333;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.token-amount {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #90ee90;
+}
+
+.floor-price {
+  font-size: 0.9rem;
+  color: #ffd700;
+  background-color: #3a2a0f;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+}
+
+.description {
+  margin: 0;
+  color: #ccc;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  text-transform: capitalize;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: currentColor;
+}
+
+.status-not_started {
+  background-color: #2a2a2a;
+  color: #ccc;
+}
+
+.status-active_bidding {
+  background-color: #1a3a1b;
+  color: #90ee90;
+}
+
+.status-processing {
+  background-color: #3a2a0f;
+  color: #ffd700;
+}
+
+.status-ended {
+  background-color: #3a1a1a;
+  color: #ff9090;
+}
+
+.bid-info {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bid-count {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #fff;
+  background-color: #2c5f2d;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.auction-times {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: #888;
+}
+
+.time-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem;
+  background-color: #2a2a2a;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.time-row:last-child {
+  margin-bottom: 0;
+}
+
+.time-label {
+  color: #888;
+}
+
+.time-value {
+  color: #fff;
+  font-weight: 500;
+}

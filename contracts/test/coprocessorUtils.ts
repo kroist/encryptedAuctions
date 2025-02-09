@@ -13,7 +13,7 @@ let lastBlockSnapshot = 0;
 let lastCounterRand = 0;
 let counterRand = 0;
 
-//const db = new Database('./sql.db'); // on-disk db for debugging
+// const db = new Database("./sql.db"); // on-disk db for debugging
 const db = new Database(":memory:");
 
 export function insertSQL(handle: string, clearText: bigint, replace: boolean = false) {
@@ -28,6 +28,7 @@ export function insertSQL(handle: string, clearText: bigint, replace: boolean = 
 // Decrypt any handle, bypassing ACL
 // WARNING : only for testing or internal use
 export const getClearText = async (handle: bigint): Promise<string> => {
+  // console.log("getClearText", handle);
   const handleStr = "0x" + handle.toString(16).padStart(64, "0");
 
   return new Promise((resolve, reject) => {
@@ -44,6 +45,7 @@ export const getClearText = async (handle: bigint): Promise<string> => {
           attempts++;
           executeQuery();
         } else {
+          console.log(`No record found after ${maxRetries} retries`, handle);
           reject(new Error("No record found after maximum retries"));
         }
       });

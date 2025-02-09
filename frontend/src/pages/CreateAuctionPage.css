@@ -1,0 +1,25 @@
+/* Page Layout */
+.create-auction-page {
+  padding: 2rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+/* Main Container */
+.auction-creation-container {
+  background-color: #1a1a1a;
+  border-radius: 12px;
+  padding: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Connection State */
+.connection-message {
+  text-align: center;
+  padding: 3rem;
+  background-color: #1a1a1a;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ccc;
+  font-size: 1.1rem;
+}

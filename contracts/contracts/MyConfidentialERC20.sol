@@ -13,5 +13,9 @@ contract MyConfidentialERC20 is SepoliaZamaFHEVMConfig, ConfidentialERC20Mintabl
     /// @notice Constructor to initialize the token's name and symbol, and set up the owner
     /// @param name_ The name of the token
     /// @param symbol_ The symbol of the token
-    constructor(string memory name_, string memory symbol_) ConfidentialERC20Mintable(name_, symbol_, msg.sender) {}
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        address owner
+    ) ConfidentialERC20Mintable(name_, symbol_, owner) {}
 }

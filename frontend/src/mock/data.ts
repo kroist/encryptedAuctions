@@ -1,0 +1,62 @@
+import { User, Item, AuctionStatus } from "../types/types";
+
+export const mockUser: User = {
+  address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+  balance: "1.5 ETH",
+};
+
+export const mockItems: Item[] = [
+  {
+    id: 1,
+    name: "NFT Collection Sale",
+    description: "Selling rare NFT collection tokens",
+    seller: "0x1234...5678",
+    tokenAmount: "1000",
+    tokenType: "NFT",
+    floorPrice: "0.5 ETH",
+    startDate: "2025-02-09 14:00:00",
+    endTime: "2025-02-10 14:00:00",
+    bidCount: 3,
+    status: AuctionStatus.Ended,
+  },
+  {
+    id: 2,
+    name: "DeFi Token Sale",
+    description: "Exclusive DeFi token offering",
+    seller: "0x8765...4321",
+    tokenAmount: "50000",
+    tokenType: "DFI",
+    floorPrice: "0.8 ETH",
+    startDate: "2025-02-01 16:00:00",
+    endTime: "2025-02-11 16:00:00",
+    bidCount: 2,
+    status: AuctionStatus.ActiveBidding,
+  },
+  {
+    id: 3,
+    name: "Metaverse Token Bundle",
+    description: "Bundle of premium metaverse tokens",
+    seller: "0x9876...1234",
+    tokenAmount: "10000",
+    tokenType: "MVT",
+    floorPrice: "1.2 ETH",
+    startDate: "2025-02-12 12:00:00",
+    endTime: "2025-02-12 18:00:00",
+    bidCount: 0,
+    status: AuctionStatus.NotStarted,
+  },
+  {
+    id: 4,
+    name: "Game Item Bundle",
+    description: "Collection of rare game items",
+    seller: "0x9876...1234",
+    tokenAmount: "5",
+    tokenType: "GAME",
+    floorPrice: "0.2 ETH",
+    startDate: "2025-02-12 12:00:00",
+    endTime: "2025-02-12 18:00:00",
+    bidCount: 0,
+    status: AuctionStatus.Processing,
+    processingProgress: 65,
+  },
+];

@@ -42,7 +42,6 @@ contract PublicAuction {
         uint256 processedBidIndex;
         uint256 slidingSum;
         uint256 lastProcessedBidId;
-        uint256 lastProcessedBidPrice;
         uint256 finalPrice;
         address creator;
     }
@@ -103,7 +102,6 @@ contract PublicAuction {
             processedBidIndex: 1,
             slidingSum: 0,
             lastProcessedBidId: 0,
-            lastProcessedBidPrice: 0,
             finalPrice: 0,
             creator: msg.sender
         });
@@ -171,16 +169,15 @@ contract PublicAuction {
         if (auctionData.processedBidIndex == 1) {
             auctionData.slidingSum = bid.amount;
             auctionData.lastProcessedBidId = _bidId;
-            auctionData.lastProcessedBidPrice = bid.price;
         } else {
+            Bid memory lastProcessedBid = bids[auctionData.lastProcessedBidId];
             // sort the bids in descending order by price, ascending order by bidId
             if (
-                (auctionData.lastProcessedBidPrice > bid.price) ||
-                (auctionData.lastProcessedBidPrice == bid.price && auctionData.lastProcessedBidId < _bidId)
+                (lastProcessedBid.price > bid.price) ||
+                (lastProcessedBid.price == bid.price && auctionData.lastProcessedBidId < _bidId)
             ) {
                 auctionData.slidingSum += bid.amount;
                 auctionData.lastProcessedBidId = _bidId;
-                auctionData.lastProcessedBidPrice = bid.price;
             } else {
                 revert WrongBidOrder();
             }

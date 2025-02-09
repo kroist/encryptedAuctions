@@ -1,3 +1,4 @@
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { reset, time } from "@nomicfoundation/hardhat-network-helpers";
 import { expect } from "chai";
 
@@ -102,7 +103,6 @@ describe("PublicAuction", function () {
         0n,
         0n,
         0n,
-        0n,
         signers.alice.address,
       ]);
     });
@@ -196,21 +196,24 @@ describe("PublicAuction", function () {
   }
 
   // Helper function to setup auction with multiple bids
-  async function setupAuctionWithBids() {
+  async function setupAuctionWithBids(bids: { singer: HardhatEthersSigner; price: bigint; amount: bigint }[]) {
     await setupTokensAndApprovals(auctionableToken, bidToken, publicAuction, signers);
     const tx = await createTestAuction(publicAuction, auctionableToken, bidToken, signers);
     await tx.wait();
     await time.increaseTo(START_TIME);
 
-    // Place multiple bids in descending price order
-    await setupBidder(signers.bob, HIGH_PRICE, HIGH_AMOUNT);
-    await setupBidder(signers.carol, MID_PRICE, MID_AMOUNT);
-    await setupBidder(signers.dave, LOW_PRICE, LOW_AMOUNT);
+    for (const bid of bids) {
+      await setupBidder(bid.singer, bid.price, bid.amount);
+    }
   }
 
   describe("Bid Processing", function () {
     beforeEach(async function () {
-      await setupAuctionWithBids();
+      await setupAuctionWithBids([
+        { singer: signers.bob, price: HIGH_PRICE, amount: HIGH_AMOUNT },
+        { singer: signers.carol, price: MID_PRICE, amount: MID_AMOUNT },
+        { singer: signers.dave, price: LOW_PRICE, amount: LOW_AMOUNT },
+      ]);
     });
 
     it("should process bids in descending price order and update state", async function () {
@@ -226,19 +229,22 @@ describe("PublicAuction", function () {
       await (await publicAuction.processNextBid(bidIds.bob)).wait();
       let auction = await publicAuction.auctionData();
       expect(auction.slidingSum).to.equal(HIGH_AMOUNT);
-      expect(auction.lastProcessedBidPrice).to.equal(HIGH_PRICE);
+      let bid = await publicAuction.bids(auction.lastProcessedBidId);
+      expect(bid.price).to.equal(HIGH_PRICE);
 
       // Process medium bid
       await (await publicAuction.processNextBid(bidIds.carol)).wait();
       auction = await publicAuction.auctionData();
       expect(auction.slidingSum).to.equal(HIGH_AMOUNT + MID_AMOUNT);
-      expect(auction.lastProcessedBidPrice).to.equal(MID_PRICE);
+      bid = await publicAuction.bids(auction.lastProcessedBidId);
+      expect(bid.price).to.equal(MID_PRICE);
 
       // Process lowest bid
       await (await publicAuction.processNextBid(bidIds.dave)).wait();
       auction = await publicAuction.auctionData();
       expect(auction.slidingSum).to.equal(HIGH_AMOUNT + MID_AMOUNT + LOW_AMOUNT);
-      expect(auction.lastProcessedBidPrice).to.equal(LOW_PRICE);
+      bid = await publicAuction.bids(auction.lastProcessedBidId);
+      expect(bid.price).to.equal(LOW_PRICE);
     });
 
     describe("Processing Validation", function () {
@@ -281,8 +287,8 @@ describe("PublicAuction", function () {
   });
 
   describe("Bid Processing: Sliding Sum", function () {
-    async function setupAndProcessBids() {
-      await setupAuctionWithBids();
+    async function setupAndProcessBids(inputs: { singer: HardhatEthersSigner; price: bigint; amount: bigint }[]) {
+      await setupAuctionWithBids(inputs);
       await time.increaseTo(POST_END_TIME);
 
       const bidIds = {
@@ -299,7 +305,12 @@ describe("PublicAuction", function () {
       return bidIds;
     }
 
-    async function verifyBidResults(bidIds: { bob: bigint; carol: bigint; dave: bigint }) {
+    it("should correctly set won amounts and final price", async function () {
+      const bidIds = await setupAndProcessBids([
+        { singer: signers.bob, price: HIGH_PRICE, amount: HIGH_AMOUNT },
+        { singer: signers.carol, price: MID_PRICE, amount: MID_AMOUNT },
+        { singer: signers.dave, price: LOW_PRICE, amount: LOW_AMOUNT },
+      ]);
       const [bobBid, carolBid, daveBid] = await Promise.all([
         publicAuction.bids(bidIds.bob),
         publicAuction.bids(bidIds.carol),
@@ -312,11 +323,26 @@ describe("PublicAuction", function () {
 
       const auction = await publicAuction.auctionData();
       expect(auction.finalPrice).to.equal(LOW_PRICE);
-    }
+    });
 
-    it("should correctly set won amounts and final price", async function () {
-      const bidIds = await setupAndProcessBids();
-      await verifyBidResults(bidIds);
+    it("should correctly set won amounts 2", async function () {
+      const bidIds = await setupAndProcessBids([
+        { singer: signers.bob, price: HIGH_PRICE, amount: HIGH_AMOUNT },
+        { singer: signers.carol, price: MID_PRICE, amount: INITIAL_TOKEN_AMOUNT - HIGH_AMOUNT },
+        { singer: signers.dave, price: LOW_PRICE, amount: LOW_AMOUNT },
+      ]);
+      const [bobBid, carolBid, daveBid] = await Promise.all([
+        publicAuction.bids(bidIds.bob),
+        publicAuction.bids(bidIds.carol),
+        publicAuction.bids(bidIds.dave),
+      ]);
+
+      expect(bobBid.wonAmount).to.equal(HIGH_AMOUNT);
+      expect(carolBid.wonAmount).to.equal(INITIAL_TOKEN_AMOUNT - HIGH_AMOUNT);
+      expect(daveBid.wonAmount).to.equal(0n);
+
+      const auction = await publicAuction.auctionData();
+      expect(auction.finalPrice).to.equal(MID_PRICE);
     });
   });
 

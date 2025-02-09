@@ -118,6 +118,7 @@ export const reencryptRequestMocked = async (
   contractAddress: string,
   userAddress: string,
 ) => {
+  // console.log("Reencrypting handle", handle.toString());
   // Signature checking:
   const domain = {
     name: "Authorization token",
