@@ -1,5 +1,4 @@
 import { useWalletReady } from "./walletReady";
-import { useFhevmInitialization } from "./fhevmSetup";
 import { useFhevmReady } from "./fhevmReady";
 
 export const useEvmConnectionReady = () => {

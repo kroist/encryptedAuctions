@@ -1,20 +1,14 @@
-import { Item } from "../types/types";
 import { Link } from "react-router-dom";
 import "./ItemList.css";
 import { useAuctionAddressList } from "../hooks/auctionAddressList";
 
-interface ItemListProps {
-  items: Item[];
-}
-
-export function ItemList({ items }: ItemListProps) {
-  const { data: auctionsList } = useAuctionAddressList();
-  console.log(auctionsList);
+export function ItemList() {
+  const { data: auctionList } = useAuctionAddressList();
 
   return (
     <div className="item-list">
-      {items.map((item) => (
-        <Link to={`/item/${item.id}`} key={item.id} className="item-card">
+      {auctionList?.items.map((item) => (
+        <Link to={`/item/${item.address}`} key={item.id} className="item-card">
           <h2 className="item-title">{item.name}</h2>
           <div className="item-content">
             <div className="status-badge">
@@ -26,11 +20,10 @@ export function ItemList({ items }: ItemListProps) {
             <div className="item-info">
               <div className="token-info">
                 <span className="token-amount">
-                  {item.tokenAmount} {item.tokenType}
+                  {item.tokenAmount} {item.tokenName}
                 </span>
                 <span className="floor-price">Floor: {item.floorPrice}</span>
               </div>
-              <p className="description">{item.description}</p>
               <div className="bid-info">
                 <span className="bid-count">{item.bidCount} sealed bids</span>
               </div>

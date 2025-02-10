@@ -21,9 +21,15 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     args: ["StakeToken", "STK"],
     log: true,
   });
+  const publicMintERC20 = await deploy("PublicMintConfidentialERC20", {
+    from: deployer,
+    args: ["USDC", "USDC"],
+    log: true,
+  });
   console.log(`EncryptedAuctionRouter contract: `, deployedAuctionRouter.address);
   console.log(`ConfidentialERC20Factory contract: `, deployedTokenFactory.address);
   console.log(`Stake Token contract: `, deployedStakeToken.address);
+  console.log(`PublicMintConfidentialERC20 contract: `, publicMintERC20.address);
 };
 export default func;
 func.id = "deploy_EncryptedAuctionRouter"; // id required to prevent reexecution

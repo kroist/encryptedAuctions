@@ -35,14 +35,6 @@ export function TokenApprovalStep({
     return (
       <div className="step-summary">
         <h3>Step {stepNumber}: Token Approval</h3>
-        {tokenAddress ? (
-          <div className="step-status success">
-            Approved token: {tokenAddress.slice(0, 6)}...
-            {tokenAddress.slice(-4)}
-          </div>
-        ) : (
-          <div className="step-status">Not started</div>
-        )}
       </div>
     );
   }

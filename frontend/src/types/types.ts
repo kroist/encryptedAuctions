@@ -12,11 +12,12 @@ export enum AuctionStatus {
 
 export interface Item {
   id: number;
+  address: `0x${string}`;
   name: string;
-  description: string;
-  seller: string;
+  seller: `0x${string}`;
   tokenAmount: string;
-  tokenType: string;
+  tokenAddress: string;
+  tokenName: string;
   floorPrice: string;
   startDate: string;
   endTime: string;

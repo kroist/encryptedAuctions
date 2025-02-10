@@ -1,14 +1,16 @@
 import { useParams, Link } from "react-router-dom";
 import { Header } from "../components/Header";
-import { mockUser, mockItems } from "../mock/data";
+import { PlaceBidButton } from "../components/PlaceBidButton";
 import "./ItemPage.css";
 import { useEvmConnectionReady } from "../hooks/evmConnectionReady";
 import "../styles/forms.css";
+import { useAuctionAddressList } from "../hooks/auctionAddressList";
 
 export function ItemPage() {
-  const { id } = useParams();
+  const { data: auctionList } = useAuctionAddressList();
+  const { address } = useParams();
   const isEvmConnectionReady = useEvmConnectionReady();
-  const item = mockItems.find((item) => item.id === Number(id));
+  const item = auctionList?.items.find((item) => item.address === address);
 
   if (!item) {
     return <div>Item not found</div>;
@@ -16,7 +18,7 @@ export function ItemPage() {
 
   return (
     <>
-      <Header user={mockUser} />
+      <Header />
       <main className="item-page">
         <Link to="/" className="back-button">
           ← Back to Items
@@ -24,7 +26,6 @@ export function ItemPage() {
         <div className="item-container">
           <div className="item-details">
             <h1>{item.name}</h1>
-            <p className="description">{item.description}</p>
             <div className="status-badge">
               <span className={`status status-${item.status.toLowerCase()}`}>
                 <span className="status-dot"></span>
@@ -37,7 +38,7 @@ export function ItemPage() {
                 <div className="info-item">
                   <span className="label">Amount</span>
                   <span className="value">
-                    {item.tokenAmount} {item.tokenType}
+                    {item.tokenAmount} {item.tokenName}
                   </span>
                 </div>
                 <div className="info-item">
@@ -66,41 +67,13 @@ export function ItemPage() {
                 </div>
               </div>
             </div>
-            <button
-              className="bid-button"
-              disabled={
-                item.status !== "ACTIVE_BIDDING" || !isEvmConnectionReady
-              }
-              title={
-                item.status === "NOT_STARTED"
-                  ? "Auction has not started yet"
-                  : item.status === "PROCESSING"
-                  ? "Auction is being processed"
-                  : item.status === "ENDED"
-                  ? "Auction has ended"
-                  : ""
-              }
-            >
-              {item.status === "ACTIVE_BIDDING" ? (
-                "Place Bid"
-              ) : item.status === "NOT_STARTED" ? (
-                "Not Started"
-              ) : item.status === "PROCESSING" ? (
-                <>
-                  Processing {item.processingProgress}%
-                  <div
-                    className="progress-bar"
-                    style={
-                      {
-                        "--progress": `${item.processingProgress}%`,
-                      } as React.CSSProperties
-                    }
-                  />
-                </>
-              ) : (
-                "Auction Ended"
-              )}
-            </button>
+            <PlaceBidButton
+              status={item.status}
+              processingProgress={item.processingProgress}
+              isEvmConnectionReady={isEvmConnectionReady}
+              auctionAddress={address as `0x${string}`}
+              floorPrice={BigInt(item.floorPrice)}
+            />
           </div>
         </div>
       </main>

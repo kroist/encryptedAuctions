@@ -5,6 +5,7 @@ import {
   getSequencerSignature,
 } from "../lib/bidSequencer";
 import { auctionAbi } from "../lib/contracts/abi/auction";
+import { USDC_ADDRESS } from "../lib/constants";
 
 export interface AuctionConfig {
   startTime: string;
@@ -64,7 +65,7 @@ export function useAuctionCreation({
       auctionAddress,
       tokenAddress,
       tokenAmount,
-      "0x12BcCa49859e00455d6d1d5fe9a0B4732f9743BE",
+      USDC_ADDRESS,
       sequencerAddress,
       config.floorPrice,
       startTimeBigint,
@@ -82,7 +83,7 @@ export function useAuctionCreation({
       args: [
         tokenAddress,
         tokenAmount,
-        "0x12BcCa49859e00455d6d1d5fe9a0B4732f9743BE",
+        USDC_ADDRESS,
         sequencerAddress,
         config.floorPrice,
         startTimeBigint,

@@ -6,6 +6,7 @@ import { reencryptEuint64 } from "../reencrypt";
 import { getSigners, initSigners } from "../signers";
 import { debug } from "../utils";
 import { deployConfidentialERC20Fixture } from "./ConfidentialERC20.fixture";
+import { deployPublicMintConfidentialERC20Fixture } from "./PublicMintConfidentialERC20.fixture";
 
 describe("ConfidentialERC20", function () {
   before(async function () {
@@ -15,9 +16,28 @@ describe("ConfidentialERC20", function () {
 
   beforeEach(async function () {
     const contract = await deployConfidentialERC20Fixture();
+    const contract2 = await deployPublicMintConfidentialERC20Fixture();
     this.contractAddress = await contract.getAddress();
     this.erc20 = contract;
+    this.publicErc20 = contract2;
     this.fhevm = await createInstance();
+  });
+
+  it("should mint the contract with public minting", async function () {
+    for (const signer of [this.signers.alice, this.signers.bob, this.signers.carol]) {
+      console.log(`Minting for ${signer.address}`);
+      const tx1 = await this.publicErc20.connect(signer).mint(signer, 1000);
+      await tx1.wait();
+      const balanceHandleSigner = await this.publicErc20.connect(signer).balanceOf(signer);
+      const balanceSigner = await reencryptEuint64(
+        signer,
+        this.fhevm,
+        balanceHandleSigner,
+        await this.publicErc20.getAddress(),
+      );
+
+      expect(balanceSigner).to.equal(1000);
+    }
   });
 
   it("should mint the contract", async function () {
