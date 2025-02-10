@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Header } from "../components/Header";
 import { mockUser } from "../mock/data";
 import { useEvmConnectionReady } from "../hooks/evmConnectionReady";
@@ -16,30 +16,34 @@ import { TokenApprovalStep } from "../components/auction-creation/TokenApprovalS
 export function CreateAuctionPage() {
   const isEvmConnectionReady = useEvmConnectionReady();
   const { address: myAddress } = useAccount();
-  // const [currentStep, setCurrentStep] = useState<AuctionCreationStep>(
-  //   AuctionCreationStep.TOKEN_CREATION
-  // );
-  // const [completedSteps, setCompletedSteps] = useState<AuctionCreationStep[]>(
-  //   []
-  // );
   const [currentStep, setCurrentStep] = useState<AuctionCreationStep>(
-    AuctionCreationStep.TOKEN_APPROVAL
+    AuctionCreationStep.TOKEN_CREATION
   );
-  const [completedSteps, setCompletedSteps] = useState<AuctionCreationStep[]>([
-    AuctionCreationStep.TOKEN_CREATION,
-    AuctionCreationStep.TOKEN_MINTING,
-    // AuctionCreationStep.AUCTION_DEPLOYMENT,
-  ]);
-  // const [tokenAddress, setTokenAddress] = useState<string | null>(null);
-  // const [mintedAmount, setMintedAmount] = useState<string | null>(null);
-  // const [auctionAddress, setAuctionAddress] = useState<string | null>(null);
-  const [tokenAddress, setTokenAddress] = useState<`0x${string}` | null>(
-    "0x8db1b18c571Bc5972C969dcDb4EddBB732E87c97"
+  const [completedSteps, setCompletedSteps] = useState<AuctionCreationStep[]>(
+    []
   );
-  const [mintedAmount, setMintedAmount] = useState<bigint | null>(1000n);
+  // const [currentStep, setCurrentStep] = useState<AuctionCreationStep>(
+  //   AuctionCreationStep.AUCTION_CONFIG
+  // );
+  // const [completedSteps, setCompletedSteps] = useState<AuctionCreationStep[]>([
+  //   AuctionCreationStep.TOKEN_CREATION,
+  //   AuctionCreationStep.TOKEN_MINTING,
+  //   AuctionCreationStep.AUCTION_DEPLOYMENT,
+  //   AuctionCreationStep.TOKEN_APPROVAL,
+  // ]);
+
+  const [tokenAddress, setTokenAddress] = useState<`0x${string}` | null>(null);
+  const [mintedAmount, setMintedAmount] = useState<bigint | null>(null);
   const [auctionAddress, setAuctionAddress] = useState<`0x${string}` | null>(
-    "0xde7809497fbd9e4cd8f09a2433e75b736f037e1a"
+    null
   );
+  // const [tokenAddress, setTokenAddress] = useState<`0x${string}` | null>(
+  //   "0xf91D13746E015cB8B0E53742A97560A2DEe48106"
+  // );
+  // const [mintedAmount, setMintedAmount] = useState<bigint | null>(1000n);
+  // const [auctionAddress, setAuctionAddress] = useState<`0x${string}` | null>(
+  //   "0x95AbbBc7f52BB17f34000735eabC8c062E539E25"
+  // );
 
   const handleStepComplete = (step: AuctionCreationStep) => {
     if (!completedSteps.includes(step)) {
@@ -69,8 +73,15 @@ export function CreateAuctionPage() {
     handleStepComplete(AuctionCreationStep.AUCTION_DEPLOYMENT);
   };
 
+  const handleTokenApproved = () => {
+    handleStepComplete(AuctionCreationStep.TOKEN_APPROVAL);
+  };
+
+  const navigate = useNavigate();
+
   const handleAuctionCreated = () => {
     handleStepComplete(AuctionCreationStep.AUCTION_CONFIG);
+    navigate("/");
   };
 
   if (!isEvmConnectionReady || !myAddress) {
@@ -118,7 +129,7 @@ export function CreateAuctionPage() {
             tokenAddress={tokenAddress}
             mintedAmount={mintedAmount}
             auctionAddress={auctionAddress}
-            onComplete={handleAuctionCreated}
+            onComplete={handleTokenApproved}
             isExpanded={currentStep === AuctionCreationStep.TOKEN_APPROVAL}
             stepNumber={4}
           />

@@ -23,6 +23,7 @@ export function TokenApprovalStep({
     tokenAmount: mintedAmount,
     auctionAddress,
   });
+  console.log(isSuccess, isLoading, error);
 
   useEffect(() => {
     if (isSuccess && !isLoading) {
@@ -33,10 +34,11 @@ export function TokenApprovalStep({
   if (!isExpanded) {
     return (
       <div className="step-summary">
-        <h3>Step {stepNumber}: Token Creation</h3>
+        <h3>Step {stepNumber}: Token Approval</h3>
         {tokenAddress ? (
           <div className="step-status success">
-            Created token: {tokenAddress.slice(0, 6)}...{tokenAddress.slice(-4)}
+            Approved token: {tokenAddress.slice(0, 6)}...
+            {tokenAddress.slice(-4)}
           </div>
         ) : (
           <div className="step-status">Not started</div>

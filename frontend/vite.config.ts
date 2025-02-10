@@ -23,8 +23,8 @@ export default defineConfig({
   assetsInclude: ["**/*.wasm"],
   plugins: [react(), nodePolyfills()],
   server: {
+    allowedHosts: true,
     headers: {
-      "access-control-allow-origin": "*",
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp",
     },

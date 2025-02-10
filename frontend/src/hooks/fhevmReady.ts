@@ -6,5 +6,6 @@ export const useFhevmReady = () => {
   const { data: fhevmInstance } = useFhevmInstance(
     chain?.rpcUrls.default.http[0] as string
   );
+  console.log(fhevmInstance);
   return !!fhevmInstance;
 };

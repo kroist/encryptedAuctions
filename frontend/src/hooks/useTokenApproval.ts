@@ -20,6 +20,7 @@ export function useTokenApproval({
   tokenAmount,
 }: TokenApprovalHook) {
   const [error, setError] = useState<string | null>(null);
+  const [isEncrypting, setIsEncrypting] = useState(false);
   const { address: myAddress, chain } = useAccount();
   const { data: fhevmInstance } = useFhevmInstance(
     chain?.rpcUrls.default.http[0] as string
@@ -57,20 +58,20 @@ export function useTokenApproval({
       setError("No account available");
       return;
     }
+    setIsEncrypting(true);
 
     const inputAlice = fhevmInstance.createEncryptedInput(
-      auctionAddress,
+      tokenAddress,
       myAddress
     );
     inputAlice.add64(tokenAmount);
-    console.log(inputAlice);
     try {
       const encryptedAllowanceAmount = await inputAlice.encrypt();
-      console.log(encryptedAllowanceAmount);
+      setIsEncrypting(false);
 
       try {
         approveTokens({
-          address: tokenAddress as `0x${string}`,
+          address: tokenAddress,
           abi: tokenAbi,
           functionName: "approve",
           args: [
@@ -91,7 +92,7 @@ export function useTokenApproval({
 
   return {
     error,
-    isLoading: isMinting || isWaitingForMint,
+    isLoading: isMinting || isWaitingForMint || isEncrypting,
     isSuccess: mintSuccess,
     approveToken: handleApproveTokens,
   };
