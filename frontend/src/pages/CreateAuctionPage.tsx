@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Header } from "../components/Header";
-import { mockUser } from "../mock/data";
 import { useEvmConnectionReady } from "../hooks/evmConnectionReady";
 import { AuctionCreationStep } from "../components/auction-creation/types";
 import { TokenCreationStep } from "../components/auction-creation/TokenCreationStep";
@@ -101,7 +100,7 @@ export function CreateAuctionPage() {
 
   return (
     <>
-      <Header user={mockUser} />
+      <Header />
       <main className="create-auction-page">
         <Link to="/" className="back-button">
           ← Back to Items
