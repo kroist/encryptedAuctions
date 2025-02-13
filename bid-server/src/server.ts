@@ -10,7 +10,7 @@ export const AUCTION_ROUTER = process.env.AUCTION_ROUTER as `0x${string}`;
 const ethereumService = new EthereumService();
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = (process.env.PORT as unknown as number) || (3001 as number);
 
 // Middleware
 app.use(cors());
@@ -102,8 +102,8 @@ app.post("/api/sign", async (req, res) => {
 });
 
 // Start server
-app.listen(port, () => {
-  console.log(`Bid server running at http://localhost:${port}`);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Bid server running at http://0.0.0.0:${port}`);
   console.log(`Available endpoints:`);
   console.log(`- GET  /address - Get Ethereum address`);
   console.log(`- POST /sign    - Sign auction parameters`);

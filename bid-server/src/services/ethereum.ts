@@ -188,11 +188,6 @@ export class EthereumService {
   }
 
   async processAuction(auctionAddress: `0x${string}`): Promise<void> {
-    if (
-      auctionAddress === "0xC848Cc1A7AbDAC197CfB17FB7A968379450d476E" ||
-      auctionAddress === "0x2e909196595e1581861bE51C71e9D44a9AC32c70"
-    )
-      return;
     console.log(auctionAddress);
     const auctionContract = getContract({
       address: auctionAddress,
