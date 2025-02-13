@@ -118,6 +118,7 @@ export function ItemPage() {
               processingProgress={item.processingProgress}
               isEvmConnectionReady={isEvmConnectionReady}
               auctionAddress={address as `0x${string}`}
+              isCreator={item.seller === myAddress}
               floorPrice={BigInt(item.floorPrice)}
               bidIsPlaced={bidId !== undefined && bidId !== 0n}
             />

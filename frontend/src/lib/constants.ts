@@ -11,5 +11,5 @@ export const WALLETCONNECT_PROJECT_ID = "7965741811ace22f7611eb87fe685b26";
 export const AUCTION_ROUTER = import.meta.env
   .VITE_AUCTION_ROUTER as `0x${string}`;
 export const TOKEN_FACTORY = "0x035EA0e1014C74f8076DB2cb1E0ECCc3dc79D9d8";
-export const BID_SERVER_URL = "/api";
+export const BID_SERVER_URL = import.meta.env.VITE_BID_SERVER_URL;
 export const USDC_ADDRESS = "0xb77Ba2b31E9Da05b96E789360d051E14F3801536";

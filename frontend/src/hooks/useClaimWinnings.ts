@@ -1,14 +1,24 @@
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useReadContract,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
 import { auctionAbi } from "../lib/contracts/abi/auction";
+import { useEffect } from "react";
 
 export function useClaimWinnings(
   auctionAddress: `0x${string}`,
   auctionCreator: `0x${string}`
 ) {
   const { address } = useAccount();
-  const { writeContractAsync, isPending } = useWriteContract();
+  const { data: claimHash, writeContract, isPending } = useWriteContract();
+  const { isLoading: isWaitingForClaim, isSuccess: claimSuccess } =
+    useWaitForTransactionReceipt({
+      hash: claimHash,
+    });
 
-  const { data: hasClaimed } = useReadContract({
+  const { data: hasClaimed, refetch } = useReadContract({
     address: auctionAddress,
     abi: auctionAbi,
     functionName: "claimed",
@@ -18,13 +28,17 @@ export function useClaimWinnings(
     },
   });
 
+  useEffect(() => {
+    refetch();
+  }, [claimSuccess, refetch]);
+
   // auctionData is a tuple where creator is at index 12
   const isCreator = address === auctionCreator;
 
-  const claim = async () => {
+  const claim = () => {
     if (!address) return;
 
-    await writeContractAsync({
+    writeContract({
       address: auctionAddress,
       abi: auctionAbi,
       functionName: isCreator ? "claimOwner" : "claim",
@@ -34,7 +48,7 @@ export function useClaimWinnings(
   return {
     claim,
     hasClaimed,
-    isClaimPending: isPending,
+    isClaimPending: isPending || isWaitingForClaim,
     isCreator,
   };
 }

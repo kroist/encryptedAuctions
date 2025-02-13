@@ -41,7 +41,7 @@ export async function getSequencerSignature(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(params, (key, value) => {
+    body: JSON.stringify(params, (_, value) => {
       if (typeof value === "bigint") {
         return value.toString();
       }

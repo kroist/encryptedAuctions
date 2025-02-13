@@ -89,7 +89,7 @@ export function CreateAuctionPage() {
   if (!isEvmConnectionReady || !myAddress) {
     return (
       <>
-        <Header user={mockUser} />
+        <Header />
         <main className="create-auction-page">
           <div className="connection-message">
             Please connect your wallet to create an auction
