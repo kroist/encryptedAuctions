@@ -226,13 +226,19 @@ export class EthereumService {
       );
       const receipt = await this.wallet.waitForTransactionReceipt({ hash: tx });
       console.log(receipt);
-      while (true) {
+      let processed = false;
+      for (let reps = 0; reps < 20; reps++) {
         const auctionData = await auctionContract.read.auctionData();
         console.log(auctionData[8] - 1n);
         if (auctionData[8] - 1n === BigInt(i + 1)) {
+          processed = true;
           break;
         }
         await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+      if (!processed) {
+        console.log("Failed to process bid", i + 1);
+        break;
       }
     }
   }

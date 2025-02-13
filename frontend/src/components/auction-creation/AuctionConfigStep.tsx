@@ -110,14 +110,14 @@ export function AuctionConfigStep({
             />
           </div>
           <div className="form-group">
-            <label htmlFor="floorPrice">Floor Price (ETH)</label>
+            <label htmlFor="floorPrice">Floor Price (USDC)</label>
             <input
               id="floorPrice"
               type="number"
               step="0.01"
               value={config.floorPrice.toString()}
               onChange={handleInputChange("floorPrice")}
-              placeholder="Enter floor price in ETH"
+              placeholder="Enter floor price in USDC"
               disabled={isLoading}
             />
           </div>
