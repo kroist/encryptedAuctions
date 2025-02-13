@@ -2,8 +2,10 @@ import express from "express";
 import cors from "cors";
 import { EthereumService } from "./services/ethereum";
 import dotenv from "dotenv";
+import { createInstance } from "fhevmjs/node";
 dotenv.config();
 
+export const AUCTION_ROUTER = process.env.AUCTION_ROUTER as `0x${string}`;
 // Export a singleton instance
 const ethereumService = new EthereumService();
 
@@ -97,11 +99,6 @@ app.post("/api/sign", async (req, res) => {
       res.status(500).json({ error: "Internal server error" });
     }
   }
-});
-
-// Event handling example
-ethereumService.addEventHandler((event) => {
-  console.log("Received Ethereum event:", event);
 });
 
 // Start server

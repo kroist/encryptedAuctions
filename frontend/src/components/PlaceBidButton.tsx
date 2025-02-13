@@ -9,6 +9,8 @@ interface PlaceBidButtonProps {
   isEvmConnectionReady: boolean;
   auctionAddress: `0x${string}`;
   floorPrice: bigint;
+  isCreator?: boolean;
+  bidIsPlaced?: boolean;
 }
 
 export function PlaceBidButton({
@@ -17,6 +19,8 @@ export function PlaceBidButton({
   isEvmConnectionReady,
   auctionAddress,
   floorPrice,
+  isCreator = false,
+  bidIsPlaced = false,
 }: PlaceBidButtonProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -24,7 +28,12 @@ export function PlaceBidButton({
     <>
       <button
         className="bid-button"
-        disabled={status !== "ACTIVE_BIDDING" || !isEvmConnectionReady}
+        disabled={
+          status !== "ACTIVE_BIDDING" ||
+          !isEvmConnectionReady ||
+          bidIsPlaced ||
+          isCreator
+        }
         onClick={() => setIsModalOpen(true)}
         title={
           status === "NOT_STARTED"
@@ -33,6 +42,8 @@ export function PlaceBidButton({
             ? "Auction is being processed"
             : status === "ENDED"
             ? "Auction has ended"
+            : bidIsPlaced
+            ? "You have already placed a bid"
             : ""
         }
       >

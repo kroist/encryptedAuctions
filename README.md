@@ -107,7 +107,7 @@ Function gas costs based on local hardhat testing with mocked FHE:
 | bid                   | 945,636    | 3,115,400 |
 | First bid processing  | 268,396    | 100       |
 | First bid callback    | 424,164    | 1,002,050 |
-| Second bid processing | 309,880    | 294,100   |
+| Second bid processing | 309,880    | 294,200   |
 | Second bid callback   | 409,064    | 1,002,050 |
 | claim                 | 514,466    | 2,641,800 |
 | claimOwner            | 528,337    | 2,243,250 |

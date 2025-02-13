@@ -14,7 +14,7 @@ export function useUSDCToken(address: `0x${string}` | undefined) {
   const [balance, setBalance] = useState<bigint | null>(null);
   const [isBalanceLoading, setIsBalanceLoading] = useState(false);
 
-  const { data: balanceRaw } = useReadContract({
+  const { refetch } = useReadContract({
     address: USDC_ADDRESS as `0x${string}`,
     abi: tokenAbi,
     functionName: "balanceOf",
@@ -29,37 +29,31 @@ export function useUSDCToken(address: `0x${string}` | undefined) {
   } = useTokenMinting(USDC_ADDRESS);
 
   const checkBalance = async () => {
-    if (!balanceRaw || !fhevmInstance || !address) return;
+    if (!fhevmInstance || !address) return;
 
     setIsBalanceLoading(true);
     try {
       const { publicKey, privateKey } = fhevmInstance.generateKeypair();
-      const eip712 = fhevmInstance.createEIP712(publicKey, address);
-      const signature = await signTypedDataAsync({
-        primaryType: "Reencrypt",
-        domain: {
-          chainId: eip712.domain.chainId,
-          name: eip712.domain.name,
-          verifyingContract: eip712.domain.verifyingContract
-            ? (eip712.domain.verifyingContract as `0x${string}`)
-            : undefined,
-          version: eip712.domain.version,
-        },
-        types: {
-          Reencrypt: [{ name: "publicKey", type: "bytes" }],
-        },
-        message: {
-          publicKey: publicKey as `0x${string}`,
-        },
-      });
+      const eip712 = fhevmInstance.createEIP712(publicKey, USDC_ADDRESS);
+      const { data: balanceRaw } = await refetch();
+      if (balanceRaw === undefined) {
+        return;
+      }
+      if (balanceRaw === 0n) {
+        setBalance(0n);
+        setIsBalanceLoading(false);
+        return;
+      }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const signature = await signTypedDataAsync(eip712 as any);
       const decrypted = await fhevmInstance.reencrypt(
         balanceRaw,
         privateKey,
         publicKey,
         signature,
-        address,
-        USDC_ADDRESS
+        USDC_ADDRESS,
+        address
       );
       setBalance(decrypted);
     } catch (error) {
@@ -77,5 +71,9 @@ export function useUSDCToken(address: `0x${string}` | undefined) {
     mintSuccess,
     mintTokens,
     checkBalance,
+    reset: () => {
+      setBalance(null);
+      setIsBalanceLoading(false);
+    },
   };
 }

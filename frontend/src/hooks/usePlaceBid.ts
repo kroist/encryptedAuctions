@@ -71,20 +71,13 @@ export function usePlaceBid({
 
     try {
       // Create and encrypt bid amount
-      const inputAmount = fhevmInstance.createEncryptedInput(
+      const inputs = fhevmInstance.createEncryptedInput(
         auctionAddress,
         myAddress
       );
-      inputAmount.add64(amount);
-      const encryptedAmount = await inputAmount.encrypt();
-
-      // Create and encrypt bid price
-      const inputPrice = fhevmInstance.createEncryptedInput(
-        auctionAddress,
-        myAddress
-      );
-      inputPrice.add64(price);
-      const encryptedPrice = await inputPrice.encrypt();
+      inputs.add64(price);
+      inputs.add64(amount);
+      const encryptedInputs = await inputs.encrypt();
 
       setIsEncrypting(false);
 
@@ -94,9 +87,9 @@ export function usePlaceBid({
           abi: auctionAbi,
           functionName: "placeBid",
           args: [
-            bytesToHex(encryptedPrice.handles[0]),
-            bytesToHex(encryptedAmount.handles[0]),
-            bytesToHex(encryptedAmount.inputProof),
+            bytesToHex(encryptedInputs.handles[0]),
+            bytesToHex(encryptedInputs.handles[1]),
+            bytesToHex(encryptedInputs.inputProof),
           ],
         });
         setError(null);

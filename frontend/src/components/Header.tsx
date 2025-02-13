@@ -6,11 +6,19 @@ import { useAccount } from "wagmi";
 export function Header() {
   const fhevmReady = useFhevmReady();
   const { address } = useAccount();
-  const { balance, isBalanceLoading, mintTokens, isMinting, checkBalance } =
-    useUSDCToken(address);
+  const {
+    balance,
+    isBalanceLoading,
+    mintTokens,
+    isMinting,
+    checkBalance,
+    reset,
+  } = useUSDCToken(address);
   const handleMint = () => {
     if (!address) return;
-    mintTokens(address, BigInt(1000));
+    mintTokens(address, BigInt(1000)).then(() => {
+      reset();
+    });
   };
 
   return (
@@ -28,7 +36,7 @@ export function Header() {
                 disabled={isBalanceLoading}
                 className="check-balance-btn"
               >
-                {isBalanceLoading ? "Checking..." : "Check Balance"}
+                {isBalanceLoading ? "Refreshing..." : "Refresh Balance"}
               </button>
             </div>
             <div className="usdc-mint">

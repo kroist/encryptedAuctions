@@ -220,6 +220,10 @@ contract EncryptedAuction is EIP712Upgradeable, GatewayCaller {
             revert BidAlreadyPlaced();
         }
 
+        if (auctionData.creator == msg.sender) {
+            revert UnauthorizedAccount();
+        }
+
         ebool amountGreaterThanZero = TFHE.gt(_amount, 0);
         ebool priceGreaterThanFloor = TFHE.ge(_price, auctionData.floorPrice);
         ebool bidAmountNotOverflowing = TFHE.le(_amount_bid, maxU64);
@@ -251,6 +255,7 @@ contract EncryptedAuction is EIP712Upgradeable, GatewayCaller {
         euint64 _wonAmount = zeroU64;
 
         TFHE.allow(_price, msg.sender);
+        TFHE.allow(_price, auctionData.bidSequencer);
         TFHE.allowThis(_price);
         TFHE.allow(_resolvedAmount, msg.sender);
         TFHE.allowThis(_resolvedAmount);
@@ -293,7 +298,7 @@ contract EncryptedAuction is EIP712Upgradeable, GatewayCaller {
             ebool lastPriceGreater = TFHE.gt(lastProcessedBid.price, bid.price);
             ebool lastPriceEqualAndLastBidIdSmaller = TFHE.and(
                 TFHE.eq(lastProcessedBid.price, bid.price),
-                (auctionData.lastProcessedBidId < _bidId)
+                TFHE.asEbool((auctionData.lastProcessedBidId < _bidId))
             );
 
             orderingCorrect = TFHE.or(lastPriceGreater, lastPriceEqualAndLastBidIdSmaller);

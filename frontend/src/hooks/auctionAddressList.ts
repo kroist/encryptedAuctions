@@ -102,7 +102,7 @@ export const useAuctionAddressList = () => {
           if (currentTime < endDate) {
             status = AuctionStatus.ActiveBidding;
           } else {
-            if (bidCount < bidsProcessed) {
+            if (bidsProcessed < bidCount) {
               status = AuctionStatus.Processing;
             } else {
               status = AuctionStatus.Ended;
@@ -125,9 +125,14 @@ export const useAuctionAddressList = () => {
           endTime: endDate.toISOString(),
           bidCount,
           status,
+          processingProgress:
+            bidCount == 0 ? 0 : Math.floor((bidsProcessed / bidCount) * 100),
         };
         items.push(item);
       }
+
+      // sort items by id descending
+      items.sort((a, b) => b.id - a.id);
 
       return { addresses, created, items };
     },

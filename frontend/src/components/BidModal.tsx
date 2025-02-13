@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { usePlaceBid } from "../hooks/usePlaceBid";
 import "./BidModal.css";
 import "../styles/forms.css";
@@ -22,12 +22,33 @@ export function BidModal({
   const [price, setPrice] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const { error, isLoading, approvalSuccess, placeBid, approveToken } =
-    usePlaceBid({
-      auctionAddress,
-      tokenAddress,
-      approveAmount: BigInt(amount) * BigInt(price),
-    });
+  const {
+    error,
+    isLoading,
+    isSuccess,
+    approvalSuccess,
+    placeBid,
+    approveToken,
+  } = usePlaceBid({
+    auctionAddress,
+    tokenAddress,
+    approveAmount: BigInt(amount) * BigInt(price),
+  });
+
+  const handleClose = useCallback(() => {
+    setAmount("");
+    setPrice("");
+    setValidationError(null);
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (isSuccess) {
+      handleClose();
+      // reload the page
+      window.location.reload();
+    }
+  }, [isSuccess, handleClose]);
 
   if (!isOpen) return null;
 
@@ -52,13 +73,6 @@ export function BidModal({
       console.error(error);
       setValidationError("Please enter valid numbers");
     }
-  };
-
-  const handleClose = () => {
-    setAmount("");
-    setPrice("");
-    setValidationError(null);
-    onClose();
   };
 
   return (

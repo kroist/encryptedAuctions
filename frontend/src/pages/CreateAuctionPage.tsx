@@ -82,6 +82,8 @@ export function CreateAuctionPage() {
   const handleAuctionCreated = () => {
     handleStepComplete(AuctionCreationStep.AUCTION_CONFIG);
     navigate("/");
+    // refresh the page
+    window.location.reload();
   };
 
   if (!isEvmConnectionReady || !myAddress) {
