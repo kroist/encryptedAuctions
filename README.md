@@ -87,7 +87,7 @@ After bid processing:
 
 1. **Smart Contracts**: fhEVM-based contracts for auction logic
 2. **Bid Sorting Server**: Processes and orders encrypted bids
-3. **Frontend**: Web interface for auction interaction (WIP)
+3. **Frontend**: Web interface for auction interaction
 
 ### Project Structure
 
