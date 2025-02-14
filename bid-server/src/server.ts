@@ -6,8 +6,20 @@ import { createInstance } from "fhevmjs/node";
 dotenv.config();
 
 export const AUCTION_ROUTER = process.env.AUCTION_ROUTER as `0x${string}`;
+
+function getRpcUrls() {
+  const rawRpcUrls = [
+    process.env.RPC_URL,
+    process.env.RPC_URL_2,
+    process.env.RPC_URL_3,
+  ];
+  return rawRpcUrls
+    .filter((rpcUrl) => rpcUrl !== undefined)
+    .map((rpcUrl) => rpcUrl);
+}
+
 // Export a singleton instance
-const ethereumService = new EthereumService();
+const ethereumService = new EthereumService(getRpcUrls());
 
 const app = express();
 const port = (process.env.PORT as unknown as number) || (3001 as number);

@@ -1,6 +1,7 @@
 import {
   createPublicClient,
   createWalletClient,
+  fallback,
   getContract,
   http,
   isAddress,
@@ -31,12 +32,12 @@ interface AuctionParams {
   stakeAmount: bigint; // uint256 _stakeAmount
 }
 
-function createClient(privateKey: `0x${string}`, rpcUrl: string) {
+function createClient(privateKey: `0x${string}`, rpcUrls: string[]) {
   const account = privateKeyToAccount(privateKey);
   let client = createWalletClient({
     account,
     chain: sepolia,
-    transport: http(rpcUrl),
+    transport: fallback(rpcUrls.map((rpcUrl) => http(rpcUrl))),
   }).extend(publicActions);
   return client;
 }
@@ -47,11 +48,11 @@ export class EthereumService {
   private wallet: Client;
   private fhevmInstance: FhevmInstance | null;
 
-  constructor() {
+  constructor(rpcUrls: string[]) {
     // Generate a random mock address
     const wallet = createClient(
       process.env.PRIVATE_KEY as `0x${string}`,
-      process.env.RPC_URL as string
+      rpcUrls
     );
     this.wallet = wallet;
     this.fhevmInstance = null;
@@ -182,8 +183,8 @@ export class EthereumService {
       }
     }
 
-    // Check again in 5 seconds
-    await new Promise((resolve) => setTimeout(resolve, 10000));
+    // Check again in 30 seconds
+    await new Promise((resolve) => setTimeout(resolve, 30000));
     this.findUnprocessedAuction();
   }
 
@@ -197,17 +198,14 @@ export class EthereumService {
     const auctionData = await auctionContract.read.auctionData();
     let lastProcessedBidIndex = auctionData[8];
     const bidIndex = auctionData[7];
-    console.log("kek", lastProcessedBidIndex, bidIndex);
     const bids: { price: bigint; index: number }[] = [];
     for (let i = 1; i < bidIndex; i++) {
       const bidData = await auctionContract.read.bids([BigInt(i)]);
-      console.log(bidData);
       const encryptedPrice = bidData[0];
       const decryptedPrice = await this.decryptPrice(
         auctionAddress,
         encryptedPrice
       );
-      console.log(decryptedPrice);
       bids.push({ price: decryptedPrice, index: i });
     }
     // sort bids by price descending, then by index ascending
@@ -217,7 +215,6 @@ export class EthereumService {
       }
       return b.price > a.price ? 1 : -1;
     });
-    console.log(bids);
     for (let i = Number(lastProcessedBidIndex - 1n); i < bids.length; i++) {
       console.log("Processing bid", i + 1);
       const tx = await auctionContract.write.processNextBid(
@@ -225,16 +222,18 @@ export class EthereumService {
         { gas: 3000000n }
       );
       const receipt = await this.wallet.waitForTransactionReceipt({ hash: tx });
-      console.log(receipt);
+      if (receipt.status === "reverted") {
+        console.log("Failed to process bid", i + 1);
+        break;
+      }
       let processed = false;
       for (let reps = 0; reps < 20; reps++) {
         const auctionData = await auctionContract.read.auctionData();
-        console.log(auctionData[8] - 1n);
         if (auctionData[8] - 1n === BigInt(i + 1)) {
           processed = true;
           break;
         }
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        await new Promise((resolve) => setTimeout(resolve, 20000));
       }
       if (!processed) {
         console.log("Failed to process bid", i + 1);
